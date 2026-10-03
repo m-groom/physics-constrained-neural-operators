@@ -1,0 +1,76 @@
+data:
+  datapath: 'DATA_ROOT/pino_kf/'
+  filename: 'pino_kf_velocity.npz'
+  normalizer_path: 'DATA_ROOT/pino_kf/pino_kf_velocity_normstat.pt'
+  name: NS2D
+  nu: 0.002
+  alpha: 0.0
+  # Snapshot spacing measured from the data, not read from the npz metadata:
+  # the momentum equation closes at 1/64 and misses by a factor of two at the
+  # 0.5/64 the dataset records (see the note on issue #20).
+  dt: 0.015625
+  domain_length: 6.283185307179586
+  nx: 64
+  ny: 64
+  nt: 64
+  formulation: velocity
+  forcing:
+    type: pino_cos4y
+    amplitude: 1.0
+    wavenumber: 4
+  shuffle: True
+  grid_form: periodic
+
+model:
+  in_dim: 7
+  out_dim: 3
+  layers: [64, 64, 64, 64, 64]
+  modes1: [16, 16, 16, 16]
+  modes2: [16, 16, 16, 16]
+  fc_dim: 128
+  act: gelu
+  residual: true
+
+train:
+  batchsize: 100
+  epochs: 280
+  milestones: [112, 196, 252]
+  base_lr: 0.001
+  weight_decay: 1.0e-4
+  grad_clip: 1.0
+  # The #42 stabilisation. Zero for the first noise_warmup_frac of the schedule, then
+  # a linear ramp reaching noise_std at the final epoch. The clean validation loss rises
+  # while the ramp runs, so only an epoch at the full amplitude is eligible for _best.pt
+  # -- under this ramp, the final one -- or the selection would keep a pre-noise
+  # checkpoint and silently discard the fix. A run that does not reach its final epoch
+  # therefore leaves no _best.pt and must be resubmitted. Rationale and measurements:
+  # docs/research/e1-stability-investigation.md and the campaign's summary/analysis.md.
+  noise_std: 2.0e-2
+  noise_warmup_frac: 0.2
+  patience: 0
+  scheduler_gamma: 0.5
+  xy_loss: 1.0
+  ic_loss: 0.0
+  f_loss: 0.0767
+  momx_loss: 0.0051
+  momy_loss: 0.0051
+  eval_step: 10
+  save_dir: runs/e1/PINO/
+  save_name: PINO2d-mode16-dim64-layer4-e1.pt
+  data_iter: 1
+  eqn_iter: 0
+
+tto:
+  enabled: false
+  num_iter: 201
+  base_lr: 0.0003
+  milestones: [100, 160]
+  scheduler_gamma: 0.5
+  trainable_scope: full
+  grad_clip_norm: 1.0
+  restore_best_weights: true
+  fallback_on_failure: true
+  early_stop_patience: 30
+  improvement_tol: 0.0
+  max_loss_multiplier: 10.0
+  save_suffix: _tto

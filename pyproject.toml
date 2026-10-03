@@ -1,0 +1,106 @@
+[project]
+name = "physics-constrained-neural-operators"
+version = "0.1.0"
+description = "Exact linear constraints for neural operators by spectral projection vs the PINO residual (NeurIPS 2026 STODY workshop paper)"
+readme = "README.md"
+authors = [{ name = "Michael Groom", email = "mrgroom62@gmail.com" }]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "torch==2.5.1",
+    "numpy>=1.26,<3",
+    "scipy>=1.13",
+    "pyyaml>=6.0",
+    # 3.10 is where `indicate_inset_zoom` returns the InsetIndicator whose
+    # connectors the spectrum inset restyles.
+    "matplotlib>=3.10",
+    "pandas>=2.2",
+    "einops>=0.8",
+    "h5py>=3.11",
+    "tqdm>=4.66",
+    "tensorboard>=2.17",
+    "torch-harmonics>=0.7",
+    "pillow>=10",
+    "pydoe>=0.3.8",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "ty>=0.0.40",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+package = false  # research scripts + top-level packages (models, utils); nothing to build
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "experiments/test_plot_results.py"]
+addopts = "-q -p no:torchtyping"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Inherited diagnostics module the paper pipeline imports two helpers from but never runs
+# as a script; it stays importable but is not linted.
+extend-exclude = ["utils/compute_diagnostics.py"]
+
+[tool.ruff.lint]
+extend-select = ["I", "D", "UP", "B", "SIM", "RUF"]
+allowed-confusables = ["−", "×", "²"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]   # tests needn't be docstring-complete
+# Legacy live files imported as-is: docstring completeness and unused-variable rules are
+# relaxed per file. Remove a file's entry once it has been documented/cleaned.
+"experiments/train_operator_AR_PINO_2d.py" = ["D", "RUF059", "F841"]
+"experiments/test_operator_AR_2d.py" = ["D", "RUF059", "F841"]
+"experiments/plot_results.py" = ["D", "RUF059", "F841"]
+"experiments/recover_tto_artifacts.py" = ["D", "RUF059", "F841"]
+"experiments/PDE_loss_verification.py" = ["D", "RUF059", "F841"]
+"experiments/test_plot_results.py" = ["D"]
+"experiments/data_utils/datasets_dedalus.py" = ["D", "RUF059", "F841"]
+"models/fno.py" = ["D", "RUF059", "F841", "B006"]
+"models/layers.py" = ["D", "RUF059", "F841"]
+"utils/criterion.py" = ["D", "RUF059", "F841", "S112", "SIM108", "SIM102", "BLE001"]
+"utils/utilities.py" = ["D", "RUF059", "F841", "BLE001"]
+"utils/spectral_test_utils.py" = ["D", "RUF059", "F841"]
+"utils/compute_physical_statistics.py" = ["D", "RUF059", "F841"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ty.environment]
+python-version = "3.12"
+# figures/ is on the path the same way tests/ put it there: make_figures.py is
+# a script beside the artwork it writes, not a package under the repository root.
+root = [".", "figures"]
+
+[tool.ty.src]
+# Same inherited file as ruff's extend-exclude.
+exclude = ["utils/compute_diagnostics.py", ".venv"]
+
+# Legacy live files: typing noise from inherited code is ignored (ty exits 1 on warnings).
+# Remove a file from this list once it type-checks cleanly.
+[[tool.ty.overrides]]
+include = [
+    "experiments/train_operator_AR_PINO_2d.py", "experiments/test_operator_AR_2d.py",
+    "experiments/plot_results.py", "experiments/recover_tto_artifacts.py",
+    "experiments/PDE_loss_verification.py", "experiments/data_utils/datasets_dedalus.py",
+    "models/fno.py", "models/layers.py", "utils/criterion.py", "utils/utilities.py",
+]
+
+[tool.ty.overrides.rules]
+invalid-assignment = "ignore"
+unsupported-operator = "ignore"
+invalid-argument-type = "ignore"
+no-matching-overload = "ignore"
+not-subscriptable = "ignore"
+unresolved-attribute = "ignore"
+unknown-argument = "ignore"
+invalid-return-type = "ignore"
+invalid-method-override = "ignore"
+call-non-callable = "ignore"

@@ -1,0 +1,113 @@
+# E3 final campaign (issue #28): the #23 six-arm campaign rerun under the winner of
+# the curl-loss screen -- the curl-matching term at lambda_curl = 1.74 with the
+# resolved 32-mode cutoff.
+#
+# Why this protocol. Every velocity FNO on E3 eventually blows up, because energy piles
+# up above the model's spectral cutoff in a band the one-step velocity loss does not
+# weigh (#42). Two changes together fix it, and neither does alone:
+#
+#   modes 32   gives the spectral layers the resolved band to write into. The 64^2
+#              coarse field is a sharp truncation at |k| <= 31 per axis, so 32 modes
+#              covers every mode the data carries; at 16 the layers write nothing above
+#              k = 16 and 18 per cent of the data's energy lives there.
+#   curl_loss  weights the error at wavenumber k by k, because
+#              omega_hat = i (kx v_hat - ky u_hat), so the loss can finally see that
+#              band. It is a data-matching term against the truth's own vorticity, not
+#              a PDE residual, so it cannot impose physics the coarse data does not
+#              satisfy -- unlike the energy-balance probe, which is kept in the table
+#              as the mis-specification probe and is not the stabiliser.
+#
+# The screen measured the pairing: on the free-running instrument (42 initial
+# conditions x 5 seeds x 448 steps) the fraction of trajectories that never blow up
+# goes 0.00 (modes 16) -> 0.11 (modes 32) -> 0.87 (modes 32 + curl at 1.74) on the
+# continuity+zero-mean arm, while the T = 64 relative L2 improves from 1.542 to 1.081.
+# The curl term at the 16-mode cutoff makes stability *worse* (0.00, median blow-up
+# 99 -> 157), because weighting a band the model cannot write into only distorts the
+# resolved fit. See docs/research/e3-curl-loss-screen.md.
+#
+# lambda_curl = 1.74 is three times the value that equalises the curl and data terms at
+# initialisation (measured ratio 0.5758 over both arms, both cutoffs and five seeds).
+#
+# The PINO residual weights are #23's, swept at the 16-mode cutoff and NOT re-swept
+# here; the data term is smaller at modes 32, so the residual family sits at a larger
+# fraction of it than #23's sizing rule intended. Stated as a limitation on #28.
+# Derived from experiments/configs/e3/PINO.yaml.
+# E3: PINO with the full unforced residual -- continuity and both momentum components (issue #23).
+# THE MIS-SPECIFIED ARM. The 64^2 coarse field carries no forcing and no subgrid stress,
+# so the momentum equation does not close on the truth: the truth's own relative momentum
+# residual is 0.649 (x) and 0.642 (y), against 0.104 on the resolved E1 control.
+data:
+  datapath: 'DATA_ROOT/e3/datasets/'
+  filename: 'ns2d_e3_velocity.npz'
+  normalizer_path: 'DATA_ROOT/e3/datasets/ns2d_e3_velocity_normstat.pt'
+  name: NS2D
+  nu: 9.3e-06                      # the 1024^2 production run's viscosity (#10)
+  alpha: 0.003                     # linear (Rayleigh) friction of the same run
+  # Snapshot spacing of the strided dataset, confirmed against the stored times
+  # (0.400000000002 +/- 4.3e-11 on every split) and not taken from metadata alone:
+  # E0 and E1 both found the recorded spacing wrong by a factor of two. Unlike
+  # those datasets, a least-squares fit here does NOT recover a different spacing
+  # -- it returns 0.302 with an increment/RHS correlation of only 0.807, which is
+  # the signature of an equation that does not close, not of a wrong dt (#23).
+  dt: 0.4
+  domain_length: 6.283185307179586
+  nx: 64
+  ny: 64
+  nt: 64                           # rollout steps; 42 trajectories on val and on test
+  formulation: velocity
+  # The 64^2 coarse field carries NO forcing: the OU band k in [56, 72] sits
+  # entirely above the |k| <= 31 cut-off, and the truncated forcing RMS is
+  # 5.9e-18 of the velocity RMS (#14). The residual is therefore unforced, which
+  # is exactly the mis-specification E3 exists to measure.
+  forcing:
+    type: none
+  shuffle: True
+  grid_form: periodic
+
+model:
+  in_dim: 7                        # u, v, p + 4 periodic grid features
+  out_dim: 3
+  layers: [64, 64, 64, 64, 64]
+  modes1: [32, 32, 32, 32]
+  modes2: [32, 32, 32, 32]
+  fc_dim: 128
+  act: gelu
+  residual: true
+
+train:
+  batchsize: 100
+  # 100 epochs with milestones at 0.4/0.7/0.9, and validation every epoch.
+  # The schedule is set by measurement, not by the clock: with 6,885 training
+  # pairs and 16.8 M parameters the validation loss bottoms out at epoch 7 and
+  # rises monotonically after it. Schedules of 40, 100, 300 and 1000 epochs all
+  # selected the SAME best checkpoint at the same validation loss (0.08704), so a
+  # longer run buys nothing and only overfits further. 100 epochs carries the
+  # optimum by a factor of fourteen, and eval_step 1 resolves it exactly (#23).
+  epochs: 100
+  milestones: [40, 70, 90]
+  base_lr: 0.001
+  weight_decay: 1.0e-4
+  grad_clip: 1.0
+  noise_std: 0.0
+  noise_warmup_frac: 0.2
+  patience: 0
+  scheduler_gamma: 0.5
+  xy_loss: 1.0
+  ic_loss: 0.0
+  # Weights sized so each residual family starts at 10% of the data term: with
+  # the FNO baseline at its own best epoch the data term is 0.08871, the
+  # continuity residual 1.139e-01 and the momentum residual 0.8388, giving
+  # f = 0.1*0.08871/0.1139 = 0.0779 and mom = 0.05*0.08871/0.8388 = 0.00529 for
+  # the momentum pair together. Those are within 4% of E1's own winners, so the
+  # E1 winner is the centre of the sweep. One seed, full schedule, best
+  # validation rel-L2: (0.0256, 0.0017) 0.08649, (0.0767, 0.0051) 0.08641,
+  # (0.230, 0.0153) 0.08748. The centre wins; it is not a grid edge (#23).
+  f_loss: 0.0767
+  momx_loss: 0.0051
+  momy_loss: 0.0051
+  curl_loss: 1.74                 # curl-matching term; see the header
+  eval_step: 1
+  save_dir: runs/e3/PINO/
+  save_name: PINO2d-mode32-dim64-layer4-e3-final.pt
+  data_iter: 1
+  eqn_iter: 0

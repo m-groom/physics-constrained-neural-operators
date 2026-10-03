@@ -1,0 +1,142 @@
+# E3 final campaign (issue #28): the #23 six-arm campaign rerun under the winner of
+# the curl-loss screen -- the curl-matching term at lambda_curl = 1.74 with the
+# resolved 32-mode cutoff.
+#
+# Why this protocol. Every velocity FNO on E3 eventually blows up, because energy piles
+# up above the model's spectral cutoff in a band the one-step velocity loss does not
+# weigh (#42). Two changes together fix it, and neither does alone:
+#
+#   modes 32   gives the spectral layers the resolved band to write into. The 64^2
+#              coarse field is a sharp truncation at |k| <= 31 per axis, so 32 modes
+#              covers every mode the data carries; at 16 the layers write nothing above
+#              k = 16 and 18 per cent of the data's energy lives there.
+#   curl_loss  weights the error at wavenumber k by k, because
+#              omega_hat = i (kx v_hat - ky u_hat), so the loss can finally see that
+#              band. It is a data-matching term against the truth's own vorticity, not
+#              a PDE residual, so it cannot impose physics the coarse data does not
+#              satisfy -- unlike the energy-balance probe, which is kept in the table
+#              as the mis-specification probe and is not the stabiliser.
+#
+# The screen measured the pairing: on the free-running instrument (42 initial
+# conditions x 5 seeds x 448 steps) the fraction of trajectories that never blow up
+# goes 0.00 (modes 16) -> 0.11 (modes 32) -> 0.87 (modes 32 + curl at 1.74) on the
+# continuity+zero-mean arm, while the T = 64 relative L2 improves from 1.542 to 1.081.
+# The curl term at the 16-mode cutoff makes stability *worse* (0.00, median blow-up
+# 99 -> 157), because weighting a band the model cannot write into only distorts the
+# resolved fit. See docs/research/e3-curl-loss-screen.md.
+#
+# lambda_curl = 1.74 is three times the value that equalises the curl and data terms at
+# initialisation (measured ratio 0.5758 over both arms, both cutoffs and five seeds).
+#
+# The PINO residual weights are #23's, swept at the 16-mode cutoff and NOT re-swept
+# here; the data term is smaller at modes 32, so the residual family sits at a larger
+# fraction of it than #23's sizing rule intended. Stated as a limitation on #28.
+# Derived from experiments/configs/e3_final/FNO_proj_cont_zeromean_energy.yaml.
+# E3: FNO with continuity, zero-mean AND the global energy balance, CLOSED (issue #83).
+#
+# The un-closed arm is the deliberate-failure probe: the energy balance is nonlinear and,
+# unlike continuity, it does NOT survive coarse-graining. With the forcing entirely above
+# the cut-off there is no resolved injection, so the balance the projector enforces predicts
+# a loss of 1.28e-04 of energy per step while the truth changes by 9.7e-06. The truth's own
+# relative balance residual is 0.93 and 13.2 times its own energy change (#23).
+#
+# What is missing from that balance is Pi, the net nonlinear transfer across the coarse
+# cut-off, and this arm closes it with the simplest thing that needs only the coarse field:
+# one constant. The Gauss-Newton residual becomes h - dt*S with
+#
+#   S = 3.198061e-04 per unit time  (S*dt = 1.279225e-04 per step)
+#
+# fitted on the E3 coarse TRAINING split alone as the mean un-closed residual over its 6,885
+# pairs, so that the closed residual has zero mean there. It is not tuned to any run.
+# Reproduce it with, from experiments/:
+#   python fit_subgrid_source.py configs/e3_final/FNO_proj_cont_zeromean_energy.yaml
+# Two independent numbers agree with it. The unforced balance's own prediction of the energy
+# the un-closed layer must remove is 1.28e-04 per step (#23), which is S*dt to three figures.
+# The measured cross-cut-off flux Pi at the coarse cut-off k = 31 is 2.994e-04 +/- 9.0e-07
+# per unit time (fluxcheck/final_results.npz), within 7 per cent of S. The fit also holds off
+# the training split: on validation the mean closed residual is 1.7e-08, 0.2 per cent of the
+# truth's own mean |dE| of 9.2e-06. On E1, where the forcing is resolved, the same fit
+# returns 3.0 per cent of the mean |dE| rather than E3's 1,367 per cent -- nothing missing,
+# as expected, which is why E1 gets no closed arm.
+#
+# Everything else -- data, model, schedule, seeds -- is the un-closed arm's, unchanged, so
+# the pair differs by the one constant.
+data:
+  datapath: 'DATA_ROOT/e3/datasets/'
+  filename: 'ns2d_e3_velocity.npz'
+  normalizer_path: 'DATA_ROOT/e3/datasets/ns2d_e3_velocity_normstat.pt'
+  name: NS2D
+  nu: 9.3e-06                      # the 1024^2 production run's viscosity (#10)
+  alpha: 0.003                     # linear (Rayleigh) friction of the same run
+  # Snapshot spacing of the strided dataset, confirmed against the stored times
+  # (0.400000000002 +/- 4.3e-11 on every split) and not taken from metadata alone:
+  # E0 and E1 both found the recorded spacing wrong by a factor of two. Unlike
+  # those datasets, a least-squares fit here does NOT recover a different spacing
+  # -- it returns 0.302 with an increment/RHS correlation of only 0.807, which is
+  # the signature of an equation that does not close, not of a wrong dt (#23).
+  dt: 0.4
+  domain_length: 6.283185307179586
+  nx: 64
+  ny: 64
+  nt: 64                           # rollout steps; 42 trajectories on val and on test
+  formulation: velocity
+  # The 64^2 coarse field carries NO forcing: the OU band k in [56, 72] sits
+  # entirely above the |k| <= 31 cut-off, and the truncated forcing RMS is
+  # 5.9e-18 of the velocity RMS (#14). The residual is therefore unforced, which
+  # is exactly the mis-specification E3 exists to measure.
+  forcing:
+    type: none
+  shuffle: True
+  grid_form: periodic
+
+model:
+  in_dim: 7                        # u, v, p + 4 periodic grid features
+  out_dim: 3
+  layers: [64, 64, 64, 64, 64]
+  modes1: [32, 32, 32, 32]
+  modes2: [32, 32, 32, 32]
+  fc_dim: 128
+  act: gelu
+  residual: true
+  output_constraint:
+    enabled: true
+    type: divergence_free
+    zero_mean: true
+    space: physical
+    velocity_channels: [0, 1]
+    energy_balance:
+      enabled: true
+      max_iterations: 20
+      residual_tol: 1.0e-10
+      # Constant (climatological) closure for the cross-cut-off inflow; see the header.
+      subgrid_source: 3.198061e-04
+
+train:
+  batchsize: 100
+  # 100 epochs with milestones at 0.4/0.7/0.9, and validation every epoch.
+  # The schedule is set by measurement, not by the clock: with 6,885 training
+  # pairs and 16.8 M parameters the validation loss bottoms out at epoch 7 and
+  # rises monotonically after it. Schedules of 40, 100, 300 and 1000 epochs all
+  # selected the SAME best checkpoint at the same validation loss (0.08704), so a
+  # longer run buys nothing and only overfits further. 100 epochs carries the
+  # optimum by a factor of fourteen, and eval_step 1 resolves it exactly (#23).
+  epochs: 100
+  milestones: [40, 70, 90]
+  base_lr: 0.001
+  weight_decay: 1.0e-4
+  grad_clip: 1.0
+  noise_std: 0.0
+  noise_warmup_frac: 0.2
+  patience: 0
+  scheduler_gamma: 0.5
+  xy_loss: 1.0
+  ic_loss: 0.0
+  f_loss: 0.0
+  momx_loss: 0.0
+  momy_loss: 0.0
+  curl_loss: 1.74                 # curl-matching term; see the header
+  eval_step: 1
+  save_dir: runs/e3/FNO_proj_cont_zeromean_energy_closed/
+  save_name: FNO2d-mode32-dim64-layer4-e3-proj-cont-zeromean-energy-closed.pt
+  data_iter: 1
+  eqn_iter: 0
