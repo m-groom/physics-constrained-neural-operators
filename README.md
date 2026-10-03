@@ -64,11 +64,6 @@ regenerated from the summaries with
 uv run python figures/make_figures.py
 ```
 
-## Acknowledgement
-
-The training and evaluation pipeline derives from Xuesong Wang's
-[multiscale_neural_operator](https://github.com/xswang-ai/multiscale_neural_operator).
-
 ## Licence and citation
 
 Copyright 2026 CSIRO. Released under the Apache License 2.0 (see `LICENSE`).
