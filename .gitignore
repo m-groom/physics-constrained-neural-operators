@@ -165,3 +165,8 @@ slurm-*.err
 # Wayfinder / local scratch
 .scratch/
 .venv
+
+# The paper figure scripts are source, not generated artwork.
+!/figures/
+!/figures/*.py
+!/figures/figures.toml

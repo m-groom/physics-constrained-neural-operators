@@ -1,0 +1,427 @@
+# Inputs and styling for paper/figures/make_figures.py.
+#
+# Every path points at a campaign that aggregate_seeds.py has already summarised:
+# `summary` is its summary.csv, `runs` the directory of run directories whose
+# evaluation_metrics/, saved_plots/ and training logs the figures read, and `free`
+# the free-running rollout archives, which carry no ground truth and so live
+# beside the campaign rather than inside an evaluation. An experiment whose paths
+# do not exist yet is skipped with a note, and an arm a campaign has not run is
+# left out of every figure and printed as missing in every table, so a campaign
+# that lands later needs no code change --- only to appear at the path below.
+#
+# `free` is a list of patterns, most preferred first, and the first that matches
+# any file wins: a re-run at a longer horizon supersedes the shorter one by being
+# named ahead of it, and both the figures and Table 1's stability column follow.
+
+[experiments.E0]
+label = "E0 (vorticity reproduction)"
+summary = "DATA_ROOT/e0/metrics/summary.csv"
+runs = "DATA_ROOT/e0/runs"
+
+[experiments.E1]
+label = "E1 (resolved)"
+# The final clean campaign (#42/#28): noise_std 2e-2, guarded checkpoint selection,
+# PINO-cont at the fairly-swept f = 0.12. Nothing blows up in it -- 0 of 200 trajectories
+# at T = 64 and 0 of 200 in 400 free-running steps for FNO and every projected arm -- so
+# the medians and the means describe the same rollout, which the #20 campaign's did not.
+summary = "DATA_ROOT/e1_noise/summary/summary.csv"
+runs = "DATA_ROOT/e1_noise/runs"
+# The #20 campaign these replace, in which 2 of 5 FNO seeds and 18 to 63 of 200
+# trajectories were unbounded at step 64:
+# summary = "DATA_ROOT/e1/summary/summary.csv"
+# runs = "DATA_ROOT/e1/runs"
+# The 2,000-step rollouts of #52 first; until they land, the 400-step ones the
+# campaign wrote into its own run directories, 40 test initial conditions a seed.
+free = [
+    "DATA_ROOT/e1_noise/free_2000/*.npz",
+    "DATA_ROOT/e1_noise/runs/*/free_rollout_400.npz",
+]
+# The resolved control's rollout figure, which the paper carries in its appendix.
+rollout_figure = "figA_e1_rollout.pdf"
+
+[experiments.E3]
+# The paper calls the unresolved case E2; the repository, the data paths and the
+# tickets keep E3, so the two names meet here and nowhere else.
+label = "E2 (unresolved)"
+# The paper compares spectra at the end of the standard T=64 rollout; without this the
+# script would pick the last step recorded anywhere (t448), where blown-up arms wrote
+# no archive and every variant was excluded.
+spectrum_step = 64
+# The noise campaign is NOT a usable basis for E3, and remains rejected: the same noise
+# protocol was run on E3 for #28 and E3's validation loss bottoms out at epoch
+# 7 of 100 and rises after it, so the guarded selection -- which is what stops the noise
+# being silently discarded -- has to take epoch 99, whose clean validation loss is 43 per
+# cent past the optimum. A controlled probe (FNO seed 1, 20 epochs so the schedule ends
+# near the optimum, ramp over the whole run) shows the noise itself also hurts on E3: the
+# blow-up step falls from 36 to 27 and the energy above k = 16 rises from 0.233 to 0.350
+# against a truth of 0.183, while the clean 20-epoch control reproduces #23 exactly. See
+# DATA_ROOT/e3_noise/summary/analysis.md.
+# The noise campaign, if it is ever wanted here:
+# summary = "DATA_ROOT/e3_noise/summary/test/summary.csv"
+# runs = "DATA_ROOT/e3_noise/runs"
+# 25 Aug 2026 (#28): E3 now reads the final campaign -- the same six arms under the
+# curl-loss protocol, modes 32 with train.curl_loss = 1.74. The screen behind the change
+# is docs/research/e3-curl-loss-screen.md; the campaign's own tables are in
+# summary/analysis.md beside the path below.
+#
+# What the change buys: every arm is more accurate at every step (rel-L2 at 64 falls from
+# 1.58 to 1.11 for FNO and from 1.54 to 1.08 for the projected arm), and the rollout
+# stops diverging -- on 210 free-running trajectories of 448 steps the fraction that never
+# blow up goes from 0.00 for all six arms to 0.18 (FNO), 0.71 (+proj), 0.87 (+proj+zm),
+# 0.89 (PINO), 0.40 (PINO-cont) and 1.00 (energy). The projection separates the arms on
+# stability, which is a column #23 could not report at all.
+#
+# WHAT IT COSTS, and it needs Michael's decision: PINO's accuracy penalty disappears.
+# Under #23, PINO was +12.3 per cent worse than FNO at the reported horizon, which is the
+# paper's mis-specification headline. Here the six arms collapse to within 4 per cent of
+# each other at every step (rel-L2 at 1 is 0.0569 to 0.0574 across all six) and PINO's
+# step-64 error is slightly BETTER than FNO's, 1.066 against 1.109. The projection's
+# accuracy margin goes with it, exactly as #47 flagged it would at the resolved cutoff.
+# What survives untouched is exactness: max|div u| 5.0e-07 against the baseline's 0.51,
+# six orders, and the domain-mean velocity at 8.6e-11.
+#
+# Reverting to #23 is the two lines commented out below.
+#
+# As for #23 before it, the campaign writes one summary per evaluation and the paper
+# reports the test split at T = 64, so `summary` must name that summary FILE and not the
+# directory holding it: naming the directory leaves Table 1's E3 columns printing "--"
+# while the figures, which read `runs`, stay filled.
+summary = "DATA_ROOT/e3_final/summary/test/summary.csv"
+runs = "DATA_ROOT/e3_final/runs"
+# The #23 clean campaign these replace, at the 16-mode cutoff, in which every arm's
+# rollout diverged (0 of 210 trajectories bounded at 448 steps) and 18 per cent of the
+# data's energy sat above the model's own spectral cutoff:
+# summary = "DATA_ROOT/e3/campaign/summary/test/summary.csv"
+# runs = "DATA_ROOT/e3/campaign/runs"
+# The 2,000-step rollouts of #52 first; until they land, the 448-step ones the
+# campaign wrote, 42 test initial conditions a seed.
+free = [
+    "DATA_ROOT/e3_final/free_2000/*.npz",
+    "DATA_ROOT/e3_final/free/*.npz",
+]
+# Figure 1 of the paper.
+rollout_figure = "fig1_e2_rollout.pdf"
+
+# ------------------------------------------------------------------------------
+# Model variants. `key` is the name the evaluation writes into its file names and
+# aggregate_seeds.py into summary.csv; `label` is how the paper names the arm.
+#
+# Every arm carries its own hue, its own marker and a dash pattern that names its
+# family, so a panel that draws all eight is read three ways over and stays read
+# in greyscale, which is how a printed submission is often read.
+#
+# The eight hues are the eight slots of the data-viz reference categorical theme
+# (blue, orange, aqua, yellow, magenta, green, violet, red), assigned to the arms
+# in the order below. That order was chosen by enumerating the orderings of the
+# theme's own eight steps with blue held on the FNO baseline and keeping only
+# those that clear every adjacent-pair gate of the skill's validate_palette.js;
+# among those it is one of the four with the widest worst pair. On the adjacent
+# list --- the pairlist for line charts, where a curve's neighbours in the legend
+# are what a reader compares --- it passes every check: worst pair aqua/green,
+# colour-vision dE 15.2 (deutan) against a target of 8 and normal-vision dE 15.6
+# against a floor of 15.
+#
+# On the all-pairs list the eight fail, and no ordering of eight steps from this
+# theme can pass it: the worst pair is orange/green at dE 3.2 (protan) and
+# orange/red at dE 7.1 under normal vision. The theme documents the same ceiling
+# --- only its first three slots validate all-pairs --- so the relief the skill
+# requires is carried by four channels that do not depend on hue: a legend on
+# every figure, a distinct marker per arm, a dash pattern per family, and Table 2
+# as the table view of the same numbers. Aqua at 2.74:1 against the page, magenta
+# at 2.62:1 and yellow at 2.11:1 sit below the 3:1 contrast target, and the same
+# four channels carry that relief.
+#
+# `dash` is a matplotlib dash pattern in points, and its absence means a solid
+# stroke. The families are: the FNO baseline and the three arms that project its
+# output, solid; the two PINO arms, dashed; the two test-time-optimised arms,
+# dash-dot. The truth wears a dotted stroke in neutral ink, which is none of the
+# three.
+#
+# One label serves both the figure legends and the table rows, so it has to be
+# plain text: no LaTeX spacing macros, which matplotlib would draw literally.
+#
+# The order the arms appear in below is the order every legend, every panel and
+# every table row group walks them in, and the order the palette was validated
+# on: colour follows the arm and never its rank, so an arm keeps its place
+# whichever campaign happens to carry it.
+
+[models.FNO]
+label = "FNO"
+colour = "#2a78d6"
+marker = "o"
+
+[models.FNO_proj_cont]
+label = "FNO+proj (cont)"
+colour = "#1baf7a"
+marker = "^"
+
+[models.FNO_proj_cont_zeromean]
+label = "FNO+proj (+mom)"
+colour = "#008300"
+marker = "D"
+
+[models.FNO_proj_cont_zeromean_energy]
+label = "FNO+proj (+energy)"
+colour = "#e87ba4"
+marker = "p"
+
+# The closed-energy model (#83): the energy projector carrying the fitted constant
+# subgrid source. It trains under its own campaign, e3_closed, and its free-running
+# traces sit beside E2's, so it is drawn on the stability figure and on the closure
+# figure. The theme's eight hues are taken, so it wears a ninth from outside the
+# theme, chosen to sit apart from the pink and the greens beside it and from the
+# FNO's blue. The palette validation above did not cover it.
+
+[models.FNO_proj_cont_zeromean_energy_closed]
+label = "FNO+proj (+energy, closed)"
+colour = "#8a5a2b"
+marker = "v"
+
+[models.PINO_cont]
+label = "PINO (cont only)"
+colour = "#eda100"
+marker = "X"
+dash = [4.2, 1.7]
+
+[models.PINO_cont_TTO_tto]
+label = "PINO (cont only) + TTO"
+colour = "#e34948"
+marker = "*"
+dash = [4.2, 1.5, 1.0, 1.5]
+
+[models.PINO]
+label = "PINO"
+colour = "#4a3aa7"
+marker = "s"
+dash = [4.2, 1.7]
+
+[models.PINO_TTO_tto]
+label = "PINO + TTO"
+colour = "#eb6834"
+marker = "P"
+dash = [4.2, 1.5, 1.0, 1.5]
+
+# The vorticity formulation of E0 carries three of the same arms, and they keep
+# the hue, the marker and the family dash they wear everywhere else.
+
+[models.FNO_vort]
+label = "FNO"
+colour = "#2a78d6"
+marker = "o"
+
+[models.PINO_vort]
+label = "PINO"
+colour = "#4a3aa7"
+marker = "s"
+dash = [4.2, 1.7]
+
+[models.PINO_vort_TTO_tto]
+label = "PINO + TTO"
+colour = "#eb6834"
+marker = "P"
+dash = [4.2, 1.5, 1.0, 1.5]
+
+# ------------------------------------------------------------------------------
+# Figures.
+#
+# `series` is every arm the rollout figures carry, which is all eight: the four of
+# issue #24, the two remaining projected arms and the two test-time-optimised
+# ones. Eight overlapping curves is past what hue alone separates, so each is also
+# read by its marker and by its family's dash, and the palette comment above says
+# what that relief covers.
+#
+# An arm is drawn on the panels it has files for, and every panel of both rollout
+# figures now carries all eight. The adapted arms' per-step metrics are #51's, five
+# seeds each over the trajectories that campaign evaluated --- 20 a seed on E1, the
+# whole split of 42 on E2; their end-of-rollout spectra are #75's, which re-ran the
+# adaptation of seed 1 on the first test trajectory alone.
+#
+# Three spectrum curves are therefore drawn from one seed and one trajectory: PINO
+# (cont only) + TTO on E1, and both adapted arms on E2. A band of zero width on those
+# three is the sample size, not a claim about the seed spread. The other arms carry
+# five seeds over the whole split, and E1's PINO + TTO twenty trajectories a seed.
+#
+# The stability figure, the training curves and the E0 residual figure name no
+# arms: they draw whichever of the arms above the campaign has files for, in the
+# order the models are listed in.
+
+[figures]
+series = [
+    "FNO",
+    "FNO_proj_cont",
+    "FNO_proj_cont_zeromean",
+    "FNO_proj_cont_zeromean_energy",
+    "PINO_cont",
+    "PINO_cont_TTO_tto",
+    "PINO",
+    "PINO_TTO_tto",
+]
+# The band of wavenumbers the spectrum panel of each rollout figure magnifies in
+# an inset, inclusive. 16 is the FNO's own spectral cutoff on E1 and the band
+# diagnostic on E2, the same cutoff the flux figure marks; 31 is the coarse
+# grid's Nyquist and the last wavenumber either spectrum carries. The two arms
+# adapted at test time shed most of the band's energy, so the panel's axis spans
+# seven decades on E2 and eleven on E1 and the arms that hold the truth's
+# spectrum are one stroke wide on it. The inset's own vertical limits come from
+# the data in the band, and an arm that has shed it falls outside them.
+spectrum_inset = [16, 31]
+stability_output = "fig_stability.pdf"
+stability_experiments = ["E1", "E3"]
+training_output = "fig_train_val.pdf"
+training_experiments = ["E1", "E3"]
+residual_output = "fig_e0_residual.pdf"
+residual_experiment = "E0"
+# The spectral-flux check behind the appendix's budget figure: an analysis rather
+# than a campaign (#28).
+flux_output = "fig_flux.pdf"
+flux_source = "DATA_ROOT/fluxcheck/final_results.npz"
+# Width of the typeset figure, in inches. The TeX must include the figure at this
+# width so that the PDF is placed at scale 1 and the 7pt labels arrive on the page
+# at 7pt; a figure rendered narrower than it is included is scaled up, and its
+# labels with it. 5.50in is the NeurIPS text block, which is the width every
+# multi-panel figure here is included at.
+width_in = 5.50
+# 0.7 of the text block, for the single-panel E0 residual figure, which is the
+# width its float is included at.
+narrow_width_in = 3.85
+
+# ------------------------------------------------------------------------------
+# The closure appendix figure (#83): E2 energy spectra at steps 64 and 448 for
+# the three projected arms and the closed-energy arm, whose projector carries
+# the fitted constant subgrid source. The step-448 curves come from the
+# six-window archive written by experiments/sixwindow_spectra.py; the step-64
+# curves come from the two campaigns' own saved spectra.
+#
+# The closed arm's style lives under [models] with the campaign arms.
+
+[closure]
+output = "fig_closed_spectra.pdf"
+archive = "DATA_ROOT/e3_closed/figures_data/step448_spectra_sixwindows.npz"
+runs = "DATA_ROOT/e3_closed/runs"
+step = 64
+series = [
+    "FNO_proj_cont",
+    "FNO_proj_cont_zeromean",
+    "FNO_proj_cont_zeromean_energy",
+    "FNO_proj_cont_zeromean_energy_closed",
+]
+
+# ------------------------------------------------------------------------------
+# Tables. `columns` names entries of the column registry in make_figures.py and is
+# reported once per experiment, cost included: training and inference time belong
+# to the arm, but the two datasets train at different sizes, so an overhead is
+# only a comparison when it is quoted against the FNO of its own dataset.
+#
+# Five numeric columns an experiment is what the main table fits upright in the
+# NeurIPS text block: at \footnotesize with \tabcolsep 2pt its ten numeric
+# columns measure 391.9pt against a 397.5pt block. The registry carries columns
+# the table does not name --- `never_blown_frac` among them --- so a column can be
+# put back by naming it, at the cost of that fit.
+
+[tables.main]
+output = "table1_body.tex"
+experiments = ["E1", "E3"]
+# Accuracy is reported at the final step of the rollout rather than averaged over
+# the horizon: the average mixes a one-step error with a decorrelated one, and on
+# E2 every arm ends at a relative error near one, which is the number the paper
+# has to be honest about. Free-running stability is not a column here: it is
+# measured over 2,000 steps, and it is reported in the prose and in the stability
+# figure instead.
+columns = [
+    "l2_step64",
+    "div_max",
+    "mean_speed_final",
+    "seconds_per_epoch",
+    "inference_s_per_trajectory",
+]
+rows = [
+    "FNO",
+    "FNO_proj_cont",
+    "FNO_proj_cont_zeromean",
+    "FNO_proj_cont_zeromean_energy",
+    "PINO_cont",
+    "PINO_cont_TTO_tto",
+    "PINO",
+    "PINO_TTO_tto",
+]
+midrule_after = ["FNO_proj_cont_zeromean_energy"]
+# "strict" marks the leader of a column and nothing else; "within_spread" marks
+# every arm the seed spread cannot separate from it. Which of the two the table
+# runs under is the author's call.
+bold = "strict"
+# Empty: FNO+proj (+energy) competes on accuracy as well as on the constraint
+# columns (it has the lowest E2 step-64 relative L2).
+exclude_from_leading = []
+
+[tables.e0]
+output = "tableE0_body.tex"
+experiments = ["E0"]
+# The vorticity formulation carries no velocity, so it has no divergence, no
+# domain-mean velocity and no kinetic energy to report: the rollout error by step
+# is the whole of the reproduction.
+columns = ["l2_rollout_mean", "l2_step1", "l2_step16", "l2_step32", "l2_step64"]
+rows = ["FNO_vort", "PINO_vort", "PINO_vort_TTO_tto"]
+
+# ------------------------------------------------------------------------------
+# Vorticity snapshots (#52). One figure per experiment: the truth beside every arm at
+# one or more rollout steps, drawn by make_snapshots.py from the vorticity trajectories
+# the evaluation already archives for the first test trajectory of each run. `steps`
+# pairs a rollout step with the evaluation-file suffix that carries it, because E3's
+# 448-step window is a separate evaluation with its own archive.
+#
+# `arms` names every arm the figures would carry, which is all eight on both
+# campaigns. The two adapted arms' fields come from #75, which re-ran the #51
+# adaptation of seed 1 on the first test trajectory alone; the #51 evaluations
+# themselves wrote metrics and no fields. TTO weights are adapted per trajectory and
+# never saved, so a re-run adapts afresh: the panel is the same trajectory, the same
+# checkpoint and the same protocol, not the same arithmetic. Against #51's own sample 0
+# on E2 the re-run agrees to 4 per cent in relative L2 and to 15 per cent in the
+# energy ratio, at steps 64 and 256 of the 448-step window.
+#
+# An arm the campaign archived no vorticity for is still left out and named on the
+# console, so a campaign that lands later needs no change here.
+#
+# The paper calls E3 "E2", so the E3 figure is written under that name.
+
+[snapshots]
+arms = [
+    "FNO",
+    "FNO_proj_cont",
+    "FNO_proj_cont_zeromean",
+    "FNO_proj_cont_zeromean_energy",
+    "PINO",
+    "PINO_cont",
+    "PINO_TTO_tto",
+    "PINO_cont_TTO_tto",
+]
+seed = 1
+# Nine panels in a row need the full 5.5in text block; the TeX must include the figure
+# at this width so the 7pt labels arrive on the page at 7pt.
+width_in = 5.50
+
+[snapshots.E1]
+output = "fig_snapshots_e1.pdf"
+steps = [[64, ""]]
+
+# Both rows are read out of the 448-step window, which records every step. At step 64 it
+# agrees with the T = 64 evaluation exactly for the six unadapted arms, whose rollout is
+# deterministic, and only to within about a third for the two adapted ones (0.39 and 0.30
+# relative on the step-64 field): TTO adapts per trajectory and never saves its weights,
+# so the two horizons are two adaptations of one trajectory. The E2 spectrum curves
+# therefore come from the T = 64 re-run and these snapshot panels from the T = 448 one.
+#
+# Step 256 is where the three projected
+# arms are still inside the truth's vorticity range --- 1.41, 1.46 and 0.83 times the
+# truth's own extreme --- and the two unprojected ones are outside it, FNO at 2.82 and
+# PINO at 1.71, with the continuity-only PINO at 70.
+#
+# The two adapted arms leave the range from below rather than above: at step 256 they
+# reach 0.066 and 0.004 of the truth's extreme, and at step 64 already only 0.136 and
+# 0.018. Adapting on the E2 residual damps the field towards rest, which the residual
+# scores as a success, so those panels are nearly blank by the arm's own doing and not
+# for want of an archive. The spectrum panel of fig1_e2_rollout.pdf carries the same
+# finding: the continuity-only arm sits below the truth at every wavenumber, and PINO +
+# TTO falls away above k = 10 to reach 0.016 of the truth's energy at k = 16.
+[snapshots.E3]
+output = "fig_snapshots_e2.pdf"
+steps = [[64, "_k16_T448"], [256, "_k16_T448"]]
